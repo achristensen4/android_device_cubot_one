@@ -4,7 +4,7 @@
 # This is a common source of Android security bugs.
 #
 
-#import /init.${ro.hardware}.rc
+import /init.${ro.hardware}.rc
 import /init.usb.rc
 import /init.trace.rc
 
@@ -30,8 +30,7 @@ on init
 
 sysclktz 0
 
-loglevel 6
-    write /proc/bootprof "INIT: on init start"
+loglevel 3
 
 # setup the global environment
     export PATH /sbin:/vendor/bin:/system/sbin:/system/bin:/system/xbin
@@ -101,12 +100,10 @@ loglevel 6
     write /proc/sys/kernel/sched_compat_yield 1
     write /proc/sys/kernel/sched_child_runs_first 0
     write /proc/sys/kernel/randomize_va_space 2
-    write /proc/sys/kernel/kptr_restrict 2
+    write /proc/sys/kernel/kptr_restrict 0
 # Gionee taochao 2012/12/15 modify for demesg in user version begin
-    # write /proc/sys/kernel/dmesg_restrict 1
 	write /proc/sys/kernel/dmesg_restrict 0
 # Gionee taochao 2012/12/15 modify for demesg in user version end
-    write /proc/sys/vm/mmap_min_addr 32768
     write /proc/sys/kernel/sched_rt_runtime_us 950000
     write /proc/sys/kernel/sched_rt_period_us 1000000
 
@@ -156,7 +153,6 @@ loglevel 6
 on fs_property:ro.mount.fs=YAFFS
 # mount mtd partitions
     # Mount /system rw first to give the filesystem a chance to save a checkpoint
-    write /proc/bootprof "INIT:NAND:Mount_START"
     mount yaffs2 mtd@system /system
 
 # via: set ril and pppd
@@ -170,19 +166,17 @@ on fs_property:ro.mount.fs=YAFFS
     chmod 4755 /system/etc/ppp/link-down-cdma
 
     mkdir /system/secro 0600 system system
-    mount yaffs2 mtd@system /system ro remount
+    mount yaffs2 mtd@system /system rw remount
     mount yaffs2 mtd@userdata /data nosuid nodev
     mount yaffs2 mtd@cache /cache nosuid nodev
     # mount secro partition
-    mount yaffs2 mtd@secstatic /system/secro ro
-    write /proc/bootprof "INIT:NAND:Mount_END"
+    mount yaffs2 mtd@secstatic /system/secro rw
 
 on fs_property:ro.mount.fs=EXT4
-    write /proc/bootprof "INIT:eMMC:Mount_START"
     exec /sbin/e2fsck -p /emmc@android
     # Mount /system rw first to give the filesystem a chance to save a checkpoint
-    #mount ext4 emmc@android /system wait commit=1,data=journal,noauto_da_alloc
-    mount ext4 /emmc@android /system wait commit=1,noauto_da_alloc
+    mount ext4 emmc@android /system wait
+    mount ext4 /emmc@android /system wait
     
     mkdir /system/secro 0600 system system
     # RIL need to do this before the folder /system changed to read only
@@ -196,15 +190,13 @@ on fs_property:ro.mount.fs=EXT4
     exec /sbin/e2fsck -pfD /emmc@usrdata
     exec /sbin/tune2fs -O has_journal /emmc@usrdata
     exec /system/bin/ext4_resize
-    mount ext4 /emmc@usrdata /data noatime nosuid nodev wait noauto_da_alloc,discard
+    mount ext4 /emmc@usrdata /data noatime nosuid nodev wait
     exec /sbin/e2fsck -p /emmc@cache
     exec /sbin/tune2fs -O has_journal /emmc@cache
-    mount ext4 /emmc@cache /cache noatime nosuid nodev wait noauto_da_alloc,discard
-    mount ext4 /emmc@sec_ro /system/secro ro wait
-    write /proc/bootprof "INIT:eMMC:Mount_END"
+    mount ext4 /emmc@cache /cache noatime nosuid nodev wait
+    mount ext4 /emmc@sec_ro /system/secro rw wait
 
 on fs_property:ro.mount.fs=UBIFS
-    write /proc/bootprof "INIT:NAND:Mount_START"
     mount ubifs ubi@system /system
 # via: set ril and pppd
     chown root /system/bin/pppd
@@ -220,11 +212,10 @@ on fs_property:ro.mount.fs=UBIFS
     chmod 0750 /system/etc/throttle.sh   
 
     mkdir /system/secro 0600 system system
-    mount ubifs ubi@system /system ro remount
+    mount ubifs ubi@system /system rw remount
     mount ubifs ubi@userdata /data nosuid nodev
     mount ubifs ubi@cache /cache nosuid nodev
-	  mount ubifs ubi@secstatic /system/secro ro
-    write /proc/bootprof "INIT:NAND:Mount_END"
+	  mount ubifs ubi@secstatic /system/secro rw
 
 # mount different fs end
 
@@ -234,15 +225,15 @@ on fs
    mount iso9660 loop@/system/mobile_toolkit/iAmCdRom.iso /mnt/cd-rom ro
 on post-fs
     # once everything is setup, no need to modify /
-    mount rootfs rootfs / ro remount
+    mount rootfs rootfs / rw remount
     # mount shared so changes propagate into child namespaces  -> move to init.ssd.rc
-    # mount rootfs rootfs / shared rec
-    # mount tmpfs tmpfs /mnt/secure private rec
+    mount rootfs rootfs / shared rec
+    mount tmpfs tmpfs /mnt/secure private rec
 
     # We chown/chmod /cache again so because mount is run as root + defaults
     chown system cache /cache
     #Gionee lingfen 20130415 modify for CR00797459 start
-    #chmod 0770 /cache
+    chmod 0770 /cache
     chmod 0771 /cache
     #Gionee lingfen 20130415 modify for CR00797459 end
     # We restorecon /cache in case the cache partition has been reset.
@@ -252,12 +243,9 @@ on post-fs
     mkdir /cache/recovery 0770 system cache
     chown system cache /cache/recovery
     #Gionee lingfen 20130415 modify for CR00797459 start
-    #chmod 0770 /cache/recovery
+    chmod 0770 /cache/recovery
     chmod 0775 /cache/recovery
     #Gionee lingfen 20130415 modify for CR00797459 end
-    # This may have been created by the recovery system with the wrong context.
-    restorecon /cache/recovery
-
     #change permissions on vmallocinfo so we can grab it from bugreports
     chown root log /proc/vmallocinfo
     chmod 0440 /proc/vmallocinfo
@@ -321,7 +309,7 @@ on post-fs-data
     mkdir /data/misc/adb 02750 system shell
     mkdir /data/misc/bluedroid 0770 bluetooth net_bt_stack
 #need to check
-#    mkdir /data/misc/bluetoothd 0770 bluetooth bluetooth
+    mkdir /data/misc/bluetoothd 0770 bluetooth bluetooth
     mkdir /data/misc/bluetooth 0770 system system
     mkdir /data/misc/keystore 0700 keystore keystore
     mkdir /data/misc/keychain 0771 system system
@@ -375,7 +363,7 @@ on post-fs-data
     # must uncomment this line, otherwise encrypted filesystems
     # won't work.
     # Set indication (checked by vold) that we have finished this action
-    #setprop vold.post_fs_data_done 1
+    setprop vold.post_fs_data_done 1
 
 # -----------------------
     # Gionee huming 2012/03/27 modify for CR00556892 begin
@@ -433,10 +421,10 @@ on post-fs-data
     mkdir /data/misc/rtc 0770 system system
 
     # M4U
-    #insmod /system/lib/modules/m4u.ko
-    #mknod /dev/M4U_device c 188 0
+    insmod /system/lib/modules/m4u.ko
+    mknod /dev/M4U_device c 188 0
     chmod 0444 /dev/M4U_device
-    #chown system media /dev/M4U_device
+    chown system media /dev/M4U_device
         
     # Sensor
     chmod 0660 /dev/hwmsensor
@@ -854,7 +842,6 @@ on property:selinux.reload_policy=1
 service console /system/bin/sh
     class core
     console
-    disabled
     user root
     group log
 
@@ -865,7 +852,6 @@ on property:ro.debuggable=1
 service adbd /sbin/adbd
     class core
     socket adbd stream 660 system system
-    disabled
     seclabel u:r:adbd:s0
 
 # adbd on at boot in emulator
@@ -881,7 +867,6 @@ service mobile_log_d /system/bin/mobile_log_d
 # bugreport is triggered by ctl.start bugreport
 service bugreport /system/bin/bugmailer.sh -v
 	class main
-	disabled
 	oneshot
 
 # SGX init
@@ -906,7 +891,6 @@ service servicemanager /system/bin/servicemanager
 service vold /system/bin/vold
     class core
     socket vold stream 0660 root mount
-    ioprio be 2
 
 service netd /system/bin/netd
     class main
@@ -944,7 +928,6 @@ service audio-daemon /system/bin/audiocmdservice_atci
     class main
     socket atci-audio stream 660 root system
     user root
-    disabled
     oneshot
     
 service pq /system/bin/pq
@@ -956,7 +939,7 @@ service pq /system/bin/pq
 
 service surfaceflinger /system/bin/surfaceflinger
     class main
-#    user system
+    user system
     group graphics
     onrestart restart zygote
 
@@ -984,44 +967,39 @@ service hald /system/bin/hald
     group system radio mount wifi inet net_admin 
     
 service insmod /system/bin/logwrapper insmod 
-    disabled
     oneshot    
     
 service rmmod /system/bin/logwrapper rmmod 
-    disabled
     oneshot        
     
-service p2p_supplicant /system/bin/logwrapper /system/bin/wpa_supplicant \
-	-iwlan0 -Dnl80211 -c/data/misc/wifi/wpa_supplicant.conf -N \
+service p2p_supplicant /system/bin/logwrapper /system/bin/wpa_supplicant
+	-iwlan0 -Dnl80211 -c/data/misc/wifi/wpa_supplicant.conf -N
 	-ip2p0 -Dnl80211 -c/data/misc/wifi/p2p_supplicant.conf -e/data/misc/wifi/entropy.bin -puse_p2p_group_interface=1 -ddd
 	#   we will start as root and wpa_supplicant will switch to user wifi
 	#   after setting up the capabilities required for WEXT
-	#   user wifi
-	#   group wifi inet keystore
+	user wifi
+	group wifi inet keystore
 	class main
 	socket wpa_wlan0 dgram 660 wifi wifi
-	disabled
 	oneshot
 
-service wpa_supplicant /system/bin/logwrapper /system/bin/wpa_supplicant \
+service wpa_supplicant /system/bin/logwrapper /system/bin/wpa_supplicant
 	-iwlan0 -Dnl80211 -c/data/misc/wifi/wpa_supplicant.conf -e/data/misc/wifi/entropy.bin -ddd
 	#   we will start as root and wpa_supplicant will switch to user wifi
 	#   after setting up the capabilities required for WEXT
-	#   user wifi
-	#   group wifi inet keystore
+	user wifi
+	group wifi inet keystore
 	class main
 	socket wpa_wlan0 dgram 660 wifi wifi
-	disabled
 	oneshot
     
-service ap_daemon /system/bin/wpa_supplicant \
+service ap_daemon /system/bin/wpa_supplicant
 	-iap0 -Dnl80211 -c/data/misc/wifi/p2p_supplicant.conf -e/data/misc/wifi/entropy.bin -puse_p2p_group_interface=1 -ddd
 	#   we will start as root and wpa_supplicant will switch to user wifi
 	#   after setting up the capabilities required for WEXT
-	#   user wifi
-	#   group wifi inet keystore
+	user wifi
+	group wifi inet keystore
 	class main
-	disabled
 	oneshot   
   
 #
@@ -1030,30 +1008,24 @@ service ap_daemon /system/bin/wpa_supplicant \
 
 service dhcpcd_wlan0 /system/bin/logwrapper /system/bin/dhcpcd -A -BK -dd
     class main
-    disabled
     oneshot
 
 service dhcpcd_p2p /system/bin/logwrapper /system/bin/dhcpcd -A -BK -dd
     class main
-    disabled
     oneshot
 
 service iprenew_wlan0 /system/bin/logwrapper /system/bin/dhcpcd -n
     class main
-    disabled
     oneshot
 
 service iprenew_p2p /system/bin/logwrapper /system/bin/dhcpcd -n
     class main
-    disabled
     oneshot
 
 service dhcp6cDNS_wlan0 /system/bin/dhcp6c -c "/etc/wide-dhcpv6/dhcp6cDNS.conf" -Df wlan0
-	disabled
 	oneshot
 
 service dhcp6c_wlan0 /system/bin/dhcp6c -c "/etc/wide-dhcpv6/dhcp6c.conf" -Df wlan0
-    disabled
     oneshot
 
 on property:service.dhcp6c_wlan0.enable=0    
@@ -1075,7 +1047,6 @@ service media /system/bin/mediaserver
     class main
     user root
     group audio camera graphics inet net_bt net_bt_admin net_bw_acct drmrpc media sdcard_rw nvram ccci radio
-    ioprio rt 4
     
 service vtservice /system/bin/vtservice
     class main
@@ -1084,19 +1055,16 @@ service vtservice /system/bin/vtservice
     socket soc_vt_svc dgram 660 media system    
     user root
     group camera graphics media sdcard_rw radio
-    ioprio rt 4
 
 service cmmb /system/bin/cmmbsp
     class main
     user root
     group system audio camera graphics inet net_bt net_bt_admin net_bw_acct media
-    ioprio rt 4
 
 service matv /system/bin/matv
     class main
     user system
     group system sdcard_rw media
-    ioprio rt 4
     
 service mdp /system/bin/mdpserver
     class main
@@ -1112,7 +1080,6 @@ service bootanim /system/bin/bootanimation
     class main
     user graphics
     group graphics media
-    disabled
     oneshot
 
 service dbus /system/bin/dbus-daemon --system --nofork
@@ -1128,7 +1095,6 @@ service bluetoothd /system/bin/bluetoothd -n
     # init.rc does not yet support applying capabilities, so run as root and
     # let bluetoothd drop uid to bluetooth with the right linux capabilities
     group bluetooth net_bt_admin misc
-    disabled
 
 service mtkbt /system/bin/mtkbt
 	socket bt.int.adp dgram 660 bluetooth net_bt
@@ -1170,7 +1136,6 @@ service racoon /system/bin/racoon
     socket racoon stream 600 system system
     # IKE uses UDP port 500. Racoon will setuid to vpn after binding the port.
     group vpn net_admin inet
-    disabled
     oneshot
 
 service mtpd /system/bin/mtpd
@@ -1178,7 +1143,6 @@ service mtpd /system/bin/mtpd
     socket mtpd stream 600 system system
     user vpn
     group vpn net_admin inet net_raw
-    disabled
     oneshot
 
 service keystore /system/bin/keystore /data/misc/keystore
@@ -1190,12 +1154,11 @@ service keystore /system/bin/keystore /data/misc/keystore
 service dumpstate /system/bin/dumpstate -s
     class main
     socket dumpstate stream 0660 shell log
-    disabled
     oneshot
 
-#service agpsdcainit /system/bin/agpscacertinit
-#    class main
-#    oneshot
+service agpsdcainit /system/bin/agpscacertinit
+class main
+oneshot
 
 service agpsd /system/bin/mtk_agpsd
     class main
@@ -1207,13 +1170,11 @@ service mnld /system/xbin/mnld
     user gps
     group nvram gps inet misc sdcard_rw
     socket mnld stream 660 gps system
-    disabled
 
 service ipod /system/bin/logwrapper /system/bin/ipod
     user root
     group root
     socket ipohctl stream 0660 root root
-    disabled
 
 service extmdlogger /system/bin/extmdlogger
     class main
@@ -1228,14 +1189,12 @@ service mdlogger /system/bin/mdlogger
     class main
     user shell
     group shell system radio sdcard_rw inet ccci
-    disabled
     oneshot
     
 service dualmdlogger /system/bin/dualmdlogger
     class main
     user shell
     group shell system radio sdcard_rw inet ccci
-    disabled
     oneshot
     
 
@@ -1245,46 +1204,44 @@ service dualmdlogger /system/bin/dualmdlogger
 
 service msensord /system/bin/msensord
     oneshot
-#gionee liujiang 2012-11-16 modify for akm8963 algo lib begin     
-#service ami304d /system/bin/logwrapper /system/bin/ami304d
-#    user system
-#    group system
-#    disabled
-#    oneshot
+#gionee liujiang 2012-11-16 modify for akm8963 algo lib begin
+
+
+service ami304d /system/bin/logwrapper /system/bin/ami304d
+user system
+group system
+oneshot
+
+
 #
-#service memsicd /system/bin/memsicd
-#     disabled
-#     oneshot
-#    user system
-#    group system
+service memsicd /system/bin/memsicd
+oneshot
+user system
+group system
+
 #    
-#service akmd8975 /system/bin/akmd8975
-#    disabled
-#    user system
-#    group system
+service akmd8975 /system/bin/akmd8975
+user system
+group system
 
 service akmd8963 /system/bin/akmd8963 -m 7 -o 1
-#    disabled
     user system
     group system
-#service lsm303md /system/bin/lsm303md
-#	  disabled
-#    user system
-#    group system
+    
+service lsm303md /system/bin/lsm303md
+user system
+group system
 
-#service bmm050d /system/bin/bmm050d
-#    disabled
-#    user system
-#    group system
+service bmm050d /system/bin/bmm050d
+user system
+group system
 #gionee liujiang 2012-11-16 modify for akm8963 algo lib end 
     
 service orientationd /system/bin/orientationd
-    disabled
     user system
     group system input
 
 service geomagneticd /system/bin/geomagneticd
-    disabled
     user system
     group system input
 #
@@ -1307,7 +1264,6 @@ service afmsvr /system/bin/afm_server
 service shutdown /system/bin/logwrapper /system/bin/shutdown
     user root
     group root
-    disabled
 
 service NvRAMAgent /system/bin/nvram_agent_binder
 		user system
@@ -1337,7 +1293,6 @@ service mmp /system/bin/mmp read_config
 service sysctl /system/xbin/sysctld
     user root
     socket sysctl stream 0666 root root
-    disabled
 
 service bt_ftrace /system/xbin/sysctld --bt-ftrace
     user root
@@ -1345,14 +1300,12 @@ service bt_ftrace /system/xbin/sysctld --bt-ftrace
 
 service sshd /system/bin/start-ssh
     class main
-    disabled
 
 service mdnsd /system/bin/mdnsd
     class main
     user mdnsr
     group inet net_raw
     socket mdnsd stream 0660 mdnsr inet
-    disabled
     oneshot
 
 service backuprestore /system/bin/br_app_data_service
