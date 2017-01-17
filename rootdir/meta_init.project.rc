@@ -34,7 +34,7 @@ on post-fs
     chown bluetooth radio /dev/stpbt
     
     # Load WiFi Driver
-    #insmod /system/lib/modules/wlan.ko
+    insmod /system/lib/modules/wlan.ko
 
 #
 # Connectivity related modules and character device nodes (Ends)
