@@ -4,7 +4,7 @@
 # This is a common source of Android security bugs.
 #
 
-#import /init.${ro.hardware}.rc
+import /init.${ro.hardware}.rc
 import /init.trace.rc
 
 #import init.xlog.rc
@@ -39,8 +39,7 @@ on init
 
 sysclktz 0
 
-loglevel 6
-    write /proc/bootprof "INIT: on init start"
+loglevel 3
 
 # setup the global environment
     export PATH /sbin:/vendor/bin:/system/sbin:/system/bin:/system/xbin
@@ -75,7 +74,7 @@ loglevel 6
 
     # See storage config details at http://source.android.com/tech/storage/
     mkdir /mnt/shell 0700 shell shell
-    # mkdir /storage 0050 root sdcard_r
+    mkdir /storage 0050 root sdcard_r
     mkdir /storage 0055 root sdcard_r
 
     mkdir /mnt/cd-rom 0000 system system
@@ -108,8 +107,8 @@ loglevel 6
     write /proc/sys/kernel/sched_compat_yield 1
     write /proc/sys/kernel/sched_child_runs_first 0
     write /proc/sys/kernel/randomize_va_space 2
-    write /proc/sys/kernel/kptr_restrict 2
-    write /proc/sys/kernel/dmesg_restrict 1
+    write /proc/sys/kernel/kptr_restrict 0
+    write /proc/sys/kernel/dmesg_restrict 0
     write /proc/sys/vm/mmap_min_addr 32768
     write /proc/sys/kernel/sched_rt_runtime_us 950000
     write /proc/sys/kernel/sched_rt_period_us 1000000
@@ -160,7 +159,6 @@ loglevel 6
 on fs_property:ro.mount.fs=YAFFS
 # mount mtd partitions
     # Mount /system rw first to give the filesystem a chance to save a checkpoint
-    write /proc/bootprof "INIT:NAND:Mount_START"
     mount yaffs2 mtd@system /system
 
 # via: set ril and pppd
@@ -174,19 +172,17 @@ on fs_property:ro.mount.fs=YAFFS
     chmod 4755 /system/etc/ppp/link-down-cdma
 
     mkdir /system/secro 0600 system system
-    mount yaffs2 mtd@system /system ro remount
+    mount yaffs2 mtd@system /system rw remount
     mount yaffs2 mtd@userdata /data nosuid nodev
     mount yaffs2 mtd@cache /cache nosuid nodev
     # mount secro partition
-    mount yaffs2 mtd@secstatic /system/secro ro
-    write /proc/bootprof "INIT:NAND:Mount_END"
+    mount yaffs2 mtd@secstatic /system/secro rw
 
 on fs_property:ro.mount.fs=EXT4
-    write /proc/bootprof "INIT:eMMC:Mount_START"
     exec /sbin/e2fsck -p /emmc@android
     # Mount /system rw first to give the filesystem a chance to save a checkpoint
-    #mount ext4 emmc@android /system wait commit=1,data=journal,noauto_da_alloc
-    mount ext4 /emmc@android /system wait commit=1,noauto_da_alloc
+    mount ext4 emmc@android /system wait
+    mount ext4 /emmc@android /system wait
     
     mkdir /system/secro 0600 system system
     # RIL need to do this before the folder /system changed to read only
@@ -196,19 +192,17 @@ on fs_property:ro.mount.fs=EXT4
     # Wifi thermal need to chmod before system is changed to read only
     chown root system /system/etc/throttle.sh
     chmod 0750 /system/etc/throttle.sh   
-    mount ext4 /emmc@android /system noatime ro remount wait
+    mount ext4 /emmc@android /system noatime rw remount wait
     exec /sbin/e2fsck -pfD /emmc@usrdata
     exec /sbin/tune2fs -O has_journal /emmc@usrdata
     exec /system/bin/ext4_resize
-    mount ext4 /emmc@usrdata /data noatime nosuid nodev wait noauto_da_alloc,discard
+    mount ext4 /emmc@usrdata /data noatime nosuid nodev wait
     exec /sbin/e2fsck -p /emmc@cache
     exec /sbin/tune2fs -O has_journal /emmc@cache
-    mount ext4 /emmc@cache /cache noatime nosuid nodev wait noauto_da_alloc,discard
+    mount ext4 /emmc@cache /cache noatime nosuid nodev wait
     mount ext4 /emmc@sec_ro /system/secro ro wait
-    write /proc/bootprof "INIT:eMMC:Mount_END"
 
 on fs_property:ro.mount.fs=UBIFS
-    write /proc/bootprof "INIT:NAND:Mount_START"
     mount ubifs ubi@system /system
 # via: set ril and pppd
     chown root /system/bin/pppd
@@ -224,11 +218,10 @@ on fs_property:ro.mount.fs=UBIFS
     chmod 0750 /system/etc/throttle.sh   
 
     mkdir /system/secro 0600 system system
-    mount ubifs ubi@system /system ro remount
+    mount ubifs ubi@system /system rw remount
     mount ubifs ubi@userdata /data nosuid nodev
     mount ubifs ubi@cache /cache nosuid nodev
-	  mount ubifs ubi@secstatic /system/secro ro
-    write /proc/bootprof "INIT:NAND:Mount_END"
+	  mount ubifs ubi@secstatic /system/secro rw
 
 # mount different fs end
 
@@ -238,7 +231,7 @@ on fs
    mount iso9660 loop@/system/mobile_toolkit/iAmCdRom.iso /mnt/cd-rom ro
 on post-fs
     # once everything is setup, no need to modify /
-    mount rootfs rootfs / ro remount
+    mount rootfs rootfs / rw remount
     # mount shared so changes propagate into child namespaces
     mount rootfs rootfs / shared rec
     mount tmpfs tmpfs /mnt/secure private rec
@@ -319,7 +312,7 @@ on post-fs-data
     mkdir /data/misc/adb 02750 system shell
     mkdir /data/misc/bluedroid 0770 bluetooth net_bt_stack
 #need to check
-#    mkdir /data/misc/bluetoothd 0770 bluetooth bluetooth
+    mkdir /data/misc/bluetoothd 0770 bluetooth bluetooth
     mkdir /data/misc/bluetooth 0770 system system
     mkdir /data/misc/keystore 0700 keystore keystore
     mkdir /data/misc/keychain 0771 system system
@@ -369,7 +362,7 @@ on post-fs-data
     # must uncomment this line, otherwise encrypted filesystems
     # won't work.
     # Set indication (checked by vold) that we have finished this action
-    #setprop vold.post_fs_data_done 1
+    setprop vold.post_fs_data_done 1
 
 # -----------------------
 # Add by MTK 
@@ -419,10 +412,10 @@ on post-fs-data
     mkdir /data/misc/rtc 0770 system system
 
     # M4U
-    #insmod /system/lib/modules/m4u.ko
-    #mknod /dev/M4U_device c 188 0
+    insmod /system/lib/modules/m4u.ko
+    mknod /dev/M4U_device c 188 0
     chmod 0444 /dev/M4U_device
-    #chown system media /dev/M4U_device
+    chown system media /dev/M4U_device
         
     # Sensor
     chmod 0660 /dev/hwmsensor
@@ -698,7 +691,6 @@ service ueventd /sbin/ueventd
 service console /system/bin/sh
     class core
     console
-    disabled
     user root
     group log
 
@@ -708,7 +700,6 @@ on property:ro.debuggable=1
 # adbd is controlled via property triggers in init.<platform>.usb.rc
 service adbd /sbin/adbd
     class core
-    disabled
 
 # adbd on at boot in emulator
 on property:ro.kernel.qemu=1
@@ -741,7 +732,7 @@ service servicemanager /system/bin/servicemanager
 
 service surfaceflinger /system/bin/surfaceflinger
     class main
-#    user system
+    user system
     group graphics
     onrestart restart zygote
 
