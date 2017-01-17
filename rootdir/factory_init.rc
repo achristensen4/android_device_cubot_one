@@ -19,8 +19,7 @@ on init
 
 sysclktz 0
 
-loglevel 5
-    write /proc/bootprof "INIT: on init start"
+loglevel 3
 
 # setup the global environment
     export PATH /sbin:/vendor/bin:/system/sbin:/system/bin:/system/xbin
@@ -72,46 +71,42 @@ on fs_property:ro.mount.fs=YAFFS
     write /proc/bootprof "INIT:NAND:Mount_START 6589"
     mount yaffs2 mtd@system /system
     mkdir /system/secro 0600 system system
-    mount yaffs2 mtd@system /system ro remount
+    mount yaffs2 mtd@system /system rw remount
     mount yaffs2 mtd@userdata /data nosuid nodev
     
 
     # mount secro partition
-    mount yaffs2 mtd@secstatic /system/secro ro
+    mount yaffs2 mtd@secstatic /system/secro rw
     mount yaffs2 mtd@cache /cache nosuid nodev
-    write /proc/bootprof "INIT:NAND:Mount_END 6589"
 
 on fs_property:ro.mount.fs=EXT4
     write /proc/bootprof "INIT:eMMC:Mount_START"
     exec /sbin/e2fsck -p /emmc@android
     # Mount /system rw first to give the filesystem a chance to save a checkpoint
-    #mount ext4 emmc@android /system wait commit=1,data=journal,noauto_da_alloc
-    mount ext4 emmc@android /system wait commit=1,noauto_da_alloc
+    mount ext4 emmc@android /system wait
+    mount ext4 emmc@android /system wait
     mkdir /system/secro 0600 system system
-    mount ext4 emmc@android /system noatime ro remount wait
+    mount ext4 emmc@android /system noatime rw remount wait
     exec /sbin/e2fsck -pfD /emmc@usrdata
     exec /sbin/tune2fs -O has_journal /emmc@usrdata
     exec /system/bin/ext4_resize
-    mount ext4 emmc@usrdata /data noatime nosuid nodev wait commit=1,nodelalloc,noauto_da_alloc	
-    mount ext4 /emmc@sec_ro /system/secro ro wait
+    mount ext4 emmc@usrdata /data noatime nosuid nodev wait
+    mount ext4 /emmc@sec_ro /system/secro rw wait
     exec /sbin/e2fsck -p /emmc@cache
     exec /sbin/tune2fs -O has_journal /emmc@cache
     mount ext4 emmc@cache /cache noatime nosuid nodev wait noauto_da_alloc
-    write /proc/bootprof "INIT:eMMC:Mount_END"
 
 on fs_property:ro.mount.fs=UBIFS
-    write /proc/bootprof "INIT:NAND:Mount_START"
     mount ubifs ubi@system /system
     mkdir /system/secro 0600 system system
     mount ubifs ubi@system /system ro remount
     mount ubifs ubi@userdata /data nosuid nodev
     mount ubifs ubi@cache /cache nosuid nodev
     mount ubifs ubi@secstatic /system/secro ro
-    write /proc/bootprof "INIT:NAND:Mount_END"
 # mount different fs end
 on post-fs
     # once everything is setup, no need to modify /
-    mount rootfs rootfs / ro remount
+    mount rootfs rootfs / rw remount
     chown system system /system/data
     mkdir /system/cache 0770 system cache
 
@@ -205,7 +200,7 @@ on post-fs
     insmod /system/lib/modules/mtk_stp_gps.ko
     insmod /system/lib/modules/mtk_stp_bt.ko
     insmod /system/lib/modules/mtk_fm_drv.ko
-    #insmod /system/lib/modules/mtk_fm_priv.ko
+    insmod /system/lib/modules/mtk_fm_priv.ko
     insmod /system/lib/modules/mtk_wmt_wifi.ko
 
     # Create char device file for WMT, GPS, BT, FM, WIFI
@@ -237,7 +232,7 @@ on post-fs
     chown dhcp dhcp /data/misc/dhcp
 
     # Load WiFi Driver (factory mode application does the stuff)
-    #insmod /system/lib/modules/wlan.ko
+    insmod /system/lib/modules/wlan.ko
 
 #
 # Connectivity related modules and character device nodes (End)
@@ -268,8 +263,8 @@ on post-fs
     insmod /system/lib/modules/ccci.ko
     chown ccci ccci /sys/class/BOOT/BOOT/boot/md
     # M4U
-    #insmod /system/lib/modules/m4u.ko
-    #mknod /dev/M4U_device c 188 0
+    insmod /system/lib/modules/m4u.ko
+    mknod /dev/M4U_device c 188 0
     chmod 0444 /dev/M4U_device
     
     # Sensor
@@ -308,8 +303,8 @@ on boot
 ##
 
 # Update the second boot logo
-# service bootlogoupdater /system/bin/boot_logo_updater
-#    oneshot
+service bootlogoupdater /system/bin/boot_logo_updater
+oneshot
 
 service ueventd /sbin/ueventd
     class core
@@ -318,7 +313,6 @@ service ueventd /sbin/ueventd
 service console /system/bin/sh
     class core
     console
-    disabled
     user root
     group log
 
@@ -361,22 +355,18 @@ service mdlogger /system/bin/mdlogger
     class main
     user shell
     group shell system radio sdcard_rw inet ccci
-    disabled
     oneshot
     
 service dualmdlogger /system/bin/dualmdlogger
     class main
     user shell
     group shell system radio sdcard_rw inet ccci
-    disabled
     oneshot
 
 service factory_no_image /system/bin/logwrapper /system/bin/factory
-    disable
     oneshot
 
 service factory_with_image /system/bin/logwrapper /sbin/factory
-	disable
     oneshot
 #
 # Connectivity related services (Begin)
@@ -391,14 +381,15 @@ service wlanLoader /system/bin/wlan_loader
     group root
     oneshot
 
-#service hald /system/bin/hald
-#    class main
-#    socket hald stream 0660 root system
+service hald /system/bin/hald
+class main
+socket hald stream 0660 root system
     
-#service wpa_supplicant /system/bin/logwrapper /system/bin/wpa_supplicant
-#    group wifi
-#    disabled
-#    oneshot    
+service wpa_supplicant /system/bin/logwrapper /system/bin/wpa_supplicant
+group wifi
+oneshot    
+
+
 #
 # Connectivity related services (End)
 #
