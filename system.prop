@@ -52,8 +52,8 @@ wifi.tethering.interface=ap0
 ro.opengles.version=131072
 
 wifi.direct.interface=p2p0
-dalvik.vm.heapgrowthlimit=128m
-dalvik.vm.heapsize=256m
+dalvik.vm.heapgrowthlimit=32m
+dalvik.vm.heapsize=64m
 
 #
 # ADDITIONAL_BUILD_PROPERTIES
@@ -80,5 +80,5 @@ dalvik.vm.mtk-stack-trace-file=/data/anr/mtk_traces.txt
 mediatek.wlan.chip=MT6628
 mediatek.wlan.module.postfix=_mt6628
 
-dalvik.vm.dexopt-data-only=1
+dalvik.vm.dexopt-data-only=0
 ro.zygote.preload.enable=0
